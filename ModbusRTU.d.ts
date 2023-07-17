@@ -22,6 +22,8 @@ export class ModbusRTU {
   writeFC15(address: number, dataAddress: number, states: Array<boolean>, next: NodeStyleCallback<WriteMultipleResult>): void;
   writeFC16(address: number, dataAddress: number, values: Array<number>, next: NodeStyleCallback<WriteMultipleResult>): void;
 
+  writeFC100(address: number, dataLogIdentifier: number|undefined, dataArguments: ReadLoadProfileDataRecordsDataArguments, next: NodeStyleCallback<ReadLoadProfileDataRecordsResult>): void;
+
   // Connection shorthand API
   connectRTU(path: string, options: SerialPortOptions, next: Function): void;
   connectRTU(path: string, options: SerialPortOptions): Promise<void>;
@@ -59,6 +61,7 @@ export class ModbusRTU {
   readHoldingRegisters(dataAddress: number, length: number): Promise<ReadRegisterResult>;
   readRegistersEnron(dataAddress: number, length: number): Promise<ReadRegisterResult>;
   readInputRegisters(dataAddress: number, length: number): Promise<ReadRegisterResult>;
+  readLoadProfileDataRecords(dataLogIdentifier: number|undefined, dataArguments: ReadLoadProfileDataRecordsDataArguments): Promise<ReadLoadProfileDataRecordsResult>;
   writeCoil(dataAddress: number, state: boolean): Promise<WriteCoilResult>;
   writeCoils(dataAddress: number, states: Array<boolean>): Promise<WriteMultipleResult>;
   writeRegister(dataAddress: number, value: number): Promise<WriteRegisterResult>;
@@ -70,6 +73,30 @@ export class ModbusRTU {
   reportServerID(deviceIdCode: number): Promise<ReportServerIDResult>;
 
   isOpen: boolean;
+}
+
+export interface ReadLoadProfileDataRecordsDataArguments {
+  dataLogIdentifier: number;
+  dataIdentifier: number;
+  advancedDataIdentifierOID: number;
+  advancedDataIdentifierLength: number;
+}
+
+export interface ReadLoadProfileDataRecordsResult {
+  data: Array<ReadLoadProfileDataRecordsResultRecord>;
+  buffer: Buffer;
+}
+
+export interface ReadLoadProfileDataRecordsResultRecord extends Record<string, number> {
+  timestamp: number;
+  timezone: number;
+  oid: number;
+  activeEnergyImport: number;
+  activeEnergyExport: number;
+  activeEnergyCounterReadingImport: number;
+  activeEnergyCounterReadingExport: number;
+  realLoadProfilePeriodLength: number;
+  informationFlags: number;
 }
 
 export interface NodeStyleCallback<T> {
