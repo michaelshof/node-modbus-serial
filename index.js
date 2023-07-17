@@ -285,6 +285,40 @@ function _readFC43(data, modbus, next) {
 }
 
 /**
+ * Reading load profile data records
+ *
+ * @param {Buffer} data the data buffer to parse.
+ * @param {Function} next the function to call next.
+ */
+function _readFC100(data, next) {
+    const payloadLength = parseInt(data.readUInt8(2));
+    const advancedDataIdentifierLength = parseInt(data.readUInt8(9));
+
+    const records = [];
+    let recordOffset = 10;
+
+    for (let recordIdx = 0; recordIdx < advancedDataIdentifierLength; recordIdx++) {
+        const recordLength = parseInt(data.readUInt8(recordOffset));
+        const record = {};
+        record.timestamp = parseInt(data.readUInt32BE(recordOffset + 1));
+        record.timezone = parseInt(data.readInt32BE(recordOffset + 1 + 4));
+        record.oid = parseInt(data.readUInt32BE(recordOffset + 1 + 4 + 4));
+        record.activeEnergyImport = parseFloat(data.readFloatBE(recordOffset + 1 + 4 + 4 + 4));
+        record.activeEnergyExport = parseFloat(data.readFloatBE(recordOffset + 1 + 4 + 4 + 4 + 4));
+        record.activeEnergyCounterReadingImport = parseFloat(data.readDoubleBE(recordOffset + 1 + 4 + 4 + 4 + 4 + 4));
+        record.activeEnergyCounterReadingExport = parseFloat(data.readDoubleBE(recordOffset + 1 + 4 + 4 + 4 + 4 + 4 + 8));
+        record.realLoadProfilePeriodLength = parseInt(data.readUInt32BE(recordOffset + 1 + 4 + 4 + 4 + 4 + 4 + 8 + 8));
+        record.informationFlags = parseInt(data.readUInt32BE(recordOffset + 1 + 4 + 4 + 4 + 4 + 4 + 8 + 8 + 4));
+
+        records.push(record);
+        recordOffset += recordLength;
+    }
+
+    if(next)
+        next(null, { "data": records, "buffer": data.slice(3, 3 + payloadLength) });
+}
+
+/**
  * Wrapper method for writing to a port with timeout. <code><b>[this]</b></code> has the context of ModbusRTU
  * @param {Buffer} buffer The data to send
  * @private
@@ -536,6 +570,11 @@ function _onReceive(data) {
         case 43:
             // read device identification
             _readFC43(data, modbus, next);
+            break;
+        case 100:
+            // Read load profile data records (FC=100/0x64)
+            _readFC100(data, next);
+            break;
     }
 }
 
@@ -1140,6 +1179,53 @@ class ModbusRTU extends EventEmitter {
         buf.writeUInt8(0x0E, 2); // 16 MEI Type
         buf.writeUInt8(deviceIdCode, 3);
         buf.writeUInt8(objectId, 4);
+        // add crc bytes to buffer
+        buf.writeUInt16LE(crc16(buf.slice(0, -2)), codeLength);
+        // write buffer to serial port
+        _writeBufferToPort.call(this, buf, this._port._transactionIdWrite);
+    }
+
+    /**
+     * Reading load profile data records
+     *
+     * @param {number} address the slave unit address.
+     * @param {number|undefined} dataLogIdentifier
+     * @param {Object} dataArguments
+     * @param {number} dataArguments.dataLogIdentifier
+     * @param {number} dataArguments.dataIdentifier
+     * @param {number} [dataArguments.advancedDataIdentifierOID=0x00000000]
+     * @param {number} [dataArguments.advancedDataIdentifierLength=0x01]
+     * @param {Function} next
+     */
+    writeFC100(address, dataLogIdentifier, dataArguments, next) {
+        // check port is actually open before attempting write
+        if (this.isOpen !== true) {
+            if (next) next(new PortNotOpenError());
+            return;
+        }
+        const code = 0x64;
+        const codeLength = 1 + 1 + 1 + 1 + 4 + 1;
+
+        dataLogIdentifier = dataLogIdentifier || dataArguments.dataLogIdentifier;
+        const dataIdentifier = dataArguments.dataIdentifier;
+        const advancedDataIdentifierOID = dataArguments.advancedDataIdentifierOID || 0x00000000;
+        const advancedDataIdentifierLength = dataArguments.advancedDataIdentifierLength || 0x01;
+
+        // set state variables
+        this._transactions[this._port._transactionIdWrite] = {
+            nextAddress: address,
+            nextCode: code,
+            lengthUnknown: true,
+            next: next
+        };
+
+        const buf = Buffer.alloc(codeLength + 2); // add 2 crc bytes
+        buf.writeUInt8(address, 0);
+        buf.writeUInt8(code, 1);
+        buf.writeUInt8(dataLogIdentifier, 2);
+        buf.writeUInt8(dataIdentifier, 3);
+        buf.writeUInt32BE(advancedDataIdentifierOID, 4);
+        buf.writeUInt8(advancedDataIdentifierLength, 8);
         // add crc bytes to buffer
         buf.writeUInt16LE(crc16(buf.slice(0, -2)), codeLength);
         // write buffer to serial port
