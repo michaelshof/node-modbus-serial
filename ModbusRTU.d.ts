@@ -61,6 +61,7 @@ export class ModbusRTU {
   readHoldingRegisters(dataAddress: number, length: number): Promise<ReadRegisterResult>;
   readRegistersEnron(dataAddress: number, length: number): Promise<ReadRegisterResult>;
   readInputRegisters(dataAddress: number, length: number): Promise<ReadRegisterResult>;
+  readFileRecords(fileNumber: number, recordNumber: number): Promise<ReadFileRecordsResult>;
   readLoadProfileDataRecords(dataLogIdentifier: number|undefined, dataArguments: ReadLoadProfileDataRecordsDataArguments): Promise<ReadLoadProfileDataRecordsResult>;
   writeCoil(dataAddress: number, state: boolean): Promise<WriteCoilResult>;
   writeCoils(dataAddress: number, states: Array<boolean>): Promise<WriteMultipleResult>;
@@ -73,6 +74,11 @@ export class ModbusRTU {
   reportServerID(deviceIdCode: number): Promise<ReportServerIDResult>;
 
   isOpen: boolean;
+}
+
+export interface ReadFileRecordsResult {
+  data: Array<number>
+  length: number
 }
 
 export interface ReadLoadProfileDataRecordsDataArguments {
